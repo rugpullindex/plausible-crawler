@@ -53,7 +53,6 @@ async function unpack(requests) {
       if (result.value.error) {
         throw new Error(result.value.error);
       }
-      console.log(result.value);
       data = [...data, ...result.value.results];
     } else {
       throw new Error("Failed to retrieve data at one point");
