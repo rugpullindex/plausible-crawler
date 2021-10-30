@@ -2,7 +2,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 import fetch from "cross-fetch";
-import { add, parse, format} from "date-fns";
+import { add, parse, format } from "date-fns";
 import { env } from "process";
 import { unlink, appendFile } from "fs/promises";
 import { EOL } from "os";
@@ -10,15 +10,17 @@ import { EOL } from "os";
 const { APIKEY } = env;
 
 const siteId = "rugpullindex.com";
-const startDate = "2021-04-08";
-const endDate = "2021-10-30";
+const startDate = "2021-04-26";
+const endDate = "2021-04-27";
 const period = "day";
 const rule = "yyyy-MM-dd";
 const fileName = "dailyvisitors.csv";
+const filters = "event:name==Outbound Link: Click";
+const property = "event:props:url";
 
 async function get(date) {
-  const url = `https://plausible.io/api/v1/stats/timeseries?site_id=${siteId}&period=${period}&date=${date}`;
-  const reply = await fetch(url, {
+  const url = `https://plausible.io/api/v1/stats/breakdown?site_id=${siteId}&property=${property}&period=${period}&date=${date}&filters=${filters}`;
+  const reply = await fetch(encodeURI(url), {
     headers: {
       Authorization: `Bearer ${APIKEY}`
     }
@@ -29,14 +31,14 @@ async function get(date) {
 
 function increment(date) {
   const pDate = parse(date, rule, new Date());
-  return format(add(pDate, { days: 1}), rule);
+  return format(add(pDate, { days: 1 }), rule);
 }
 
 async function init() {
   const requests = [];
 
   let pointer = startDate;
-  while(pointer !== endDate) {
+  while (pointer !== endDate) {
     requests.push(await get(pointer));
     pointer = increment(pointer);
   }
@@ -48,6 +50,10 @@ async function unpack(requests) {
   let data = [];
   for (let result of await Promise.allSettled(requests)) {
     if (result.status === "fulfilled") {
+      if (result.value.error) {
+        throw new Error(result.value.error);
+      }
+      console.log(result.value);
       data = [...data, ...result.value.results];
     } else {
       throw new Error("Failed to retrieve data at one point");
@@ -64,7 +70,11 @@ async function write(data) {
 }
 
 async function run() {
-  await unlink(fileName);
+  try {
+    await unlink(fileName);
+  } catch (err) {
+    //noop
+  }
   const requests = await init();
   const data = await unpack(requests);
   await write(data);
